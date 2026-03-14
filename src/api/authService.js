@@ -1,8 +1,6 @@
 import axiosClient from "./axiosClient";
 
-const authService = {
+export const authService = {
   login: (username, password) =>
     axiosClient.post("/auth/login", { username, password }),
 };
-
-export default authService;

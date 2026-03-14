@@ -1,36 +1,39 @@
-import { useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
 
-export default function Modal({ open, onClose, title, children, size = 'md' }) {
-  useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose?.() }
-    if (open) document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [open, onClose])
+export default function Navbar({ title = 'Dashboard' }) {
+  const { user } = useAuth()
 
-  if (!open) return null
-
-  const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
+  const initials = user?.username
+    ? user.username.slice(0, 2).toUpperCase()
+    : 'SA'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-ink-950/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${widths[size]} fade-in`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
-          <h2 className="font-display font-bold text-ink-800 text-base">{title}</h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-ink-400 hover:bg-surface-200 hover:text-ink-700 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+    <header className="h-14 bg-white border-b border-surface-300 flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-10">
+      <h1 className="font-display font-bold text-ink-800 text-base tracking-tight">{title}</h1>
+      <div className="flex items-center gap-4">
+        {/* Notificaciones */}
+        <button className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-500 hover:bg-surface-200 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+        </button>
+
+        {/* Usuario — solo display, sin acción */}
+        <div className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-lg">
+          <div className="w-7 h-7 rounded-full bg-accent-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            {initials}
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-ink-700 leading-tight">
+              {user?.username || 'Usuario'}
+            </span>
+            {user?.rol && (
+              <span className="text-xs text-ink-400 leading-tight">{user.rol}</span>
+            )}
+          </div>
         </div>
-        <div className="px-6 py-5">{children}</div>
       </div>
-    </div>
+    </header>
   )
 }

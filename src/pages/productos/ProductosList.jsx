@@ -1,67 +1,135 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Table from '../../components/Table'
 import Modal from '../../components/Modal'
 import FormInput from '../../components/FormInput'
 import Alert from '../../components/Alert'
+import { productoService } from '../../api/productoService'
 
-const MOCK = [
-  { codigo: 'PROD-001', nombre: 'Laptop Pro 15"', precioCompra: 800000, ivaCompra: 12, precioVenta: 1200000, proveedor: 'TechDistrib S.A.' },
-  { codigo: 'PROD-002', nombre: 'Mouse Inalámbrico', precioCompra: 25000, ivaCompra: 19, precioVenta: 45000, proveedor: 'TechDistrib S.A.' },
-  { codigo: 'PROD-003', nombre: 'Teclado Mecánico', precioCompra: 90000, ivaCompra: 19, precioVenta: 150000, proveedor: 'Global Supplies Ltda.' },
-  { codigo: 'PROD-004', nombre: 'Monitor 27"', precioCompra: 450000, ivaCompra: 12, precioVenta: 750000, proveedor: 'Importaciones XYZ' },
-]
-
-const fmt = (n) => `$${Number(n).toLocaleString('es-CO')}`
+const fmt = (n) => `$${Number(n || 0).toLocaleString('es-CO')}`
 
 const COLS = [
-  { key: 'codigo', label: 'Código' },
-  { key: 'nombre', label: 'Nombre' },
+  { key: 'codigoProducto', label: 'Código' },
+  { key: 'nombreProducto', label: 'Nombre' },
+  { key: 'nitproveedor', label: 'NIT Proveedor' },
   { key: 'precioCompra', label: 'P. Compra', render: (v) => fmt(v) },
-  { key: 'ivaCompra', label: 'IVA', render: (v) => `${v}%` },
+  { key: 'ivacompra', label: 'IVA', render: (v) => `${v}%` },
   { key: 'precioVenta', label: 'P. Venta', render: (v) => fmt(v) },
-  { key: 'proveedor', label: 'Proveedor' },
+  { key: 'stock', label: 'Stock', render: (v) => (
+    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+      v > 10 ? 'bg-jade-500/10 text-jade-500' :
+      v > 0  ? 'bg-amber-500/10 text-amber-500' :
+               'bg-rose-500/10 text-rose-500'
+    }`}>
+      {v}
+    </span>
+  )},
   { key: '_actions', label: 'Acciones' },
 ]
 
-const EMPTY = { codigo: '', nombre: '', precioCompra: '', ivaCompra: '', precioVenta: '', proveedor: '' }
+const EMPTY = {
+  nombreProducto: '',
+  nitproveedor:   '',
+  precioCompra:   '',
+  ivacompra:      '',
+  precioVenta:    '',
+}
 
 export default function ProductosList() {
-  const [data, setData] = useState(MOCK)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState(EMPTY)
-  const [editing, setEditing] = useState(null)
-  const [alert, setAlert] = useState(null)
-  const [search, setSearch] = useState('')
+  const [data, setData]               = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [modalOpen, setModalOpen]     = useState(false)
+  const [form, setForm]               = useState(EMPTY)
+  const [editingCodigo, setEditingCodigo] = useState(null)
+  const [alert, setAlert]             = useState(null)
+  const [search, setSearch]           = useState('')
+
+  const showAlert = (type, msg) => {
+    setAlert({ type, msg })
+    setTimeout(() => setAlert(null), 4000)
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const { data: res } = await productoService.getAll()
+      setData(Array.isArray(res) ? res : [])
+    } catch {
+      showAlert('error', 'Error al cargar productos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchData() }, [])
+
+  const openCreate = () => {
+    setForm(EMPTY)
+    setEditingCodigo(null)
+    setModalOpen(true)
+  }
+
+  const openEdit = (row) => {
+    setForm({
+      nombreProducto: row.nombreProducto,
+      nitproveedor:   row.nitproveedor,
+      precioCompra:   row.precioCompra,
+      ivacompra:      row.ivacompra,
+      precioVenta:    row.precioVenta,
+      stock:          row.stock,
+    })
+    setEditingCodigo(row.codigoProducto)
+    setModalOpen(true)
+  }
+
+  const handleDelete = async (codigo) => {
+    if (!confirm('¿Eliminar este producto? Esta acción no se puede deshacer.')) return
+    try {
+      await productoService.delete(codigo)
+      showAlert('success', 'Producto eliminado correctamente')
+      fetchData()
+    } catch {
+      showAlert('error', 'Error al eliminar producto')
+    }
+  }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    const payload = {
+      ...form,
+      nitproveedor: Number(form.nitproveedor),
+      precioCompra: Number(form.precioCompra),
+      ivacompra:    Number(form.ivacompra),
+      precioVenta:  Number(form.precioVenta),
+      stock:        Number(form.stock),
+    }
+    try {
+      if (editingCodigo) {
+        await productoService.update(editingCodigo, payload)
+        showAlert('success', 'Producto actualizado correctamente')
+      } else {
+        await productoService.create(payload)
+        showAlert('success', 'Producto creado correctamente')
+      }
+      setModalOpen(false)
+      fetchData()
+    } catch (err) {
+      showAlert('error', err.response?.data?.mensaje ?? err.response?.data?.message ?? 'Error al guardar producto')
+    }
+  }
 
   const filtered = data.filter((p) =>
-    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    p.codigo.toLowerCase().includes(search.toLowerCase())
+    p.nombreProducto?.toLowerCase().includes(search.toLowerCase()) ||
+    String(p.codigoProducto)?.includes(search) ||
+    String(p.nitproveedor)?.includes(search)
   )
-
-  const openCreate = () => { setForm(EMPTY); setEditing(null); setModalOpen(true) }
-  const openEdit = (row) => { setForm({ ...row }); setEditing(row.codigo); setModalOpen(true) }
-
-  const handleDelete = (id) => {
-    if (!confirm('¿Eliminar producto?')) return
-    setData((d) => d.filter((p) => p.codigo !== id))
-    setAlert({ type: 'success', msg: 'Producto eliminado' })
-  }
-
-  const handleSave = (e) => {
-    e.preventDefault()
-    if (editing) setData((d) => d.map((p) => p.codigo === editing ? form : p))
-    else setData((d) => [...d, form])
-    setAlert({ type: 'success', msg: editing ? 'Producto actualizado' : 'Producto creado' })
-    setModalOpen(false)
-  }
 
   const tableData = filtered.map((p) => ({
     ...p,
     _actions: (
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <button onClick={() => openEdit(p)} className="btn-secondary py-1 px-3 text-xs">Editar</button>
-        <button onClick={() => handleDelete(p.codigo)} className="btn-danger py-1 px-3 text-xs">Eliminar</button>
+        <button onClick={() => handleDelete(p.codigoProducto)} className="btn-danger py-1 px-3 text-xs">Eliminar</button>
       </div>
     ),
   }))
@@ -77,18 +145,10 @@ export default function ProductosList() {
         </div>
         <div className="flex gap-2">
           <Link to="/productos/cargar-csv" className="btn-secondary">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            Cargar CSV
+            <UploadIcon /> Cargar CSV
           </Link>
           <button onClick={openCreate} className="btn-primary">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Nuevo producto
+            <PlusIcon /> Nuevo producto
           </button>
         </div>
       </div>
@@ -96,25 +156,64 @@ export default function ProductosList() {
       <div className="card">
         <input
           className="input-field max-w-xs mb-4"
-          placeholder="Buscar por nombre o código…"
+          placeholder="Buscar por nombre, código o NIT…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <Table columns={COLS} data={tableData} loading={false} />
+        <Table columns={COLS} data={tableData} loading={loading} emptyMessage="No hay productos registrados" />
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar producto' : 'Nuevo producto'} size="lg">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingCodigo ? 'Editar producto' : 'Nuevo producto'}
+        size="lg"
+      >
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <FormInput label="Código" value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} required disabled={!!editing} />
-            <FormInput label="Nombre producto" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+            <FormInput
+              label="Nombre producto"
+              value={form.nombreProducto}
+              onChange={(e) => setForm({ ...form, nombreProducto: e.target.value })}
+              required
+            />
+            <FormInput
+              label="NIT proveedor"
+              type="number"
+              value={form.nitproveedor}
+              onChange={(e) => setForm({ ...form, nitproveedor: e.target.value })}
+              required
+            />
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <FormInput label="Precio compra" type="number" value={form.precioCompra} onChange={(e) => setForm({ ...form, precioCompra: e.target.value })} required />
-            <FormInput label="IVA compra (%)" type="number" value={form.ivaCompra} onChange={(e) => setForm({ ...form, ivaCompra: e.target.value })} required />
-            <FormInput label="Precio venta" type="number" value={form.precioVenta} onChange={(e) => setForm({ ...form, precioVenta: e.target.value })} required />
+            <FormInput
+              label="Precio compra"
+              type="number"
+              value={form.precioCompra}
+              onChange={(e) => setForm({ ...form, precioCompra: e.target.value })}
+              required
+            />
+            <FormInput
+              label="IVA compra (%)"
+              type="number"
+              value={form.ivacompra}
+              onChange={(e) => setForm({ ...form, ivacompra: e.target.value })}
+              required
+            />
+            <FormInput
+              label="Precio venta"
+              type="number"
+              value={form.precioVenta}
+              onChange={(e) => setForm({ ...form, precioVenta: e.target.value })}
+              required
+            />
           </div>
-          <FormInput label="Proveedor" value={form.proveedor} onChange={(e) => setForm({ ...form, proveedor: e.target.value })} />
+          <FormInput
+            label="Stock inicial"
+            type="number"
+            value={form.stock}
+            onChange={(e) => setForm({ ...form, stock: e.target.value })}
+          />
           <div className="flex gap-3 pt-2">
             <button type="submit" className="btn-primary flex-1 justify-center">Guardar</button>
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary flex-1 justify-center">Cancelar</button>
@@ -122,5 +221,24 @@ export default function ProductosList() {
         </form>
       </Modal>
     </div>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function UploadIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
   )
 }

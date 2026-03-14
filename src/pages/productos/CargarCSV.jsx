@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import FileUpload from '../../components/FileUpload'
 import Alert from '../../components/Alert'
+import { productoService } from '../../api/productoService'
 
 export default function CargarCSV() {
-  const [file, setFile] = useState(null)
+  const [file, setFile]       = useState(null)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [alert, setAlert] = useState(null)
+  const [alert, setAlert]     = useState(null)
 
   const handleUpload = async () => {
     if (!file) return setAlert({ type: 'warning', msg: 'Selecciona un archivo CSV primero.' })
@@ -15,22 +16,22 @@ export default function CargarCSV() {
     setProgress(0)
     setAlert(null)
 
-    // Simulate upload progress
     const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 90) { clearInterval(interval); return p }
-        return p + 10
-      })
+      setProgress((p) => { if (p >= 85) { clearInterval(interval); return p } return p + 10 })
     }, 200)
 
     try {
-      // Real call: await productoService.uploadCSV(formData)
-      await new Promise((r) => setTimeout(r, 2200))
+      const formData = new FormData()
+      formData.append('archivo', file)
+      await productoService.uploadCSV(formData)
+      clearInterval(interval)
       setProgress(100)
-      setAlert({ type: 'success', msg: `Archivo "${file.name}" cargado correctamente. Productos importados.` })
+      setAlert({ type: 'success', msg: `Archivo "${file.name}" cargado correctamente.` })
       setFile(null)
-    } catch {
-      setAlert({ type: 'error', msg: 'Error al cargar el archivo. Verifica el formato CSV.' })
+    } catch (err) {
+      clearInterval(interval)
+      setProgress(0)
+      setAlert({ type: 'error', msg: err.response?.data ?? 'Error al cargar el archivo. Verifica el formato CSV.' })
     } finally {
       setLoading(false)
     }
@@ -40,7 +41,9 @@ export default function CargarCSV() {
     <div className="space-y-5 fade-in max-w-2xl">
       <div className="flex items-center gap-3">
         <Link to="/productos" className="text-ink-400 hover:text-ink-700 transition-colors">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path d="M19 12H5M12 5l-7 7 7 7" />
+          </svg>
         </Link>
         <div>
           <h2 className="font-display font-bold text-ink-800 text-xl">Cargar CSV de productos</h2>
@@ -51,17 +54,29 @@ export default function CargarCSV() {
       {alert && <Alert variant={alert.type} message={alert.msg} onClose={() => setAlert(null)} />}
 
       <div className="card space-y-5">
-        {/* Format hint */}
-        <div className="bg-accent-500/5 border border-accent-500/20 rounded-xl p-4">
-          <p className="text-xs font-semibold text-accent-500 mb-2 uppercase tracking-wide">Formato esperado</p>
-          <code className="text-xs text-ink-600 font-mono block bg-white rounded-lg px-3 py-2 border border-surface-300">
-            codigo,nombre,precioCompra,ivaCompra,precioVenta,proveedor
-          </code>
-        </div>
+        <div className="bg-accent-500/5 border border-accent-500/20 rounded-xl p-4 space-y-3">
+  <p className="text-xs font-semibold text-accent-500 uppercase tracking-wide">Formato esperado</p>
+  <div>
+    <p className="text-xs text-ink-500 mb-1">Primera fila — encabezado (requerido):</p>
+    <code className="text-xs text-ink-600 font-mono block bg-white rounded-lg px-3 py-2 border border-surface-300">
+      nombreProducto,nitproveedor,precioCompra,ivacompra,precioVenta
+    </code>
+  </div>
+  <div>
+    <p className="text-xs text-ink-500 mb-1">Filas siguientes — datos:</p>
+    <code className="text-xs text-ink-600 font-mono block bg-white rounded-lg px-3 py-2 border border-surface-300">
+      Laptop Pro,123456,800000,19,1200000
+    </code>
+  </div>
+  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+    <p className="text-xs text-amber-500 font-medium">
+      ⚠ El NIT del proveedor debe existir previamente en el sistema
+    </p>
+  </div>
+</div>
 
         <FileUpload accept=".csv" onFileSelect={setFile} label="Seleccionar archivo CSV" />
 
-        {/* Progress bar */}
         {loading && (
           <div>
             <div className="flex justify-between items-center mb-1.5">
@@ -69,27 +84,27 @@ export default function CargarCSV() {
               <span className="text-xs font-semibold text-accent-500">{progress}%</span>
             </div>
             <div className="h-2 bg-surface-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-accent-500 rounded-full transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
+              <div className="h-full bg-accent-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
           </div>
         )}
 
-        <button
-          onClick={handleUpload}
-          disabled={loading || !file}
-          className="btn-primary disabled:opacity-50"
-        >
+        <button onClick={handleUpload} disabled={loading || !file} className="btn-primary disabled:opacity-50">
           {loading ? (
             <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
               Subiendo…
             </>
           ) : (
             <>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
               Subir archivo
             </>
           )}
